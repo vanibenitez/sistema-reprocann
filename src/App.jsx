@@ -22,30 +22,17 @@ import {
   updateDoc
 } from 'firebase/firestore';
 
-// --- CONFIGURACIÓN FIREBASE ROBUSTA ---
-// INTENTA LEER LA CONFIGURACIÓN. SI FALLA, USA UN PLACEHOLDER PARA NO ROMPER LA APP.
-const getFirebaseConfig = () => {
-  try {
-    if (typeof __firebase_config !== 'undefined') {
-      return JSON.parse(__firebase_config);
-    }
-  } catch (e) {
-    console.warn("Configuración global de Firebase no encontrada.");
-  }
-  
-  // ¡IMPORTANTE! REEMPLAZA ESTO CON TUS DATOS REALES DE FIREBASE SI LA APP SE VE EN BLANCO O NO CONECTA
-  return {
-    apiKey: "AIzaSyAUD1Ve1O7IFfMpUMo6pbMNEiK-VvLWG-g",
+// --- CONFIGURACIÓN FIREBASE (PRODUCCIÓN) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyAUD1Ve1O7IFfMpUMo6pbMNEiK-VvLWG-g",
   authDomain: "sistema-doctora.firebaseapp.com",
   projectId: "sistema-doctora",
   storageBucket: "sistema-doctora.firebasestorage.app",
   messagingSenderId: "691641796580",
   appId: "1:691641796580:web:82374ff9323d338930a9f1",
   measurementId: "G-MCWHDL1YGL"
-  };
 };
 
-const firebaseConfig = getFirebaseConfig();
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -79,7 +66,7 @@ const FIELD_LABELS = {
   name: "Nombre Completo",
   reprocannCode: "Código Reprocann",
   patologia: "Patología / Motivo",
-  afflictionTime: "Tiempo Afección",
+  afflictionTime: "Tiempo Afección (Col Y)",
   priorTreatment: "Tratamiento Previo",
   medication: "Otras Medicaciones",
   cardiac: "Enf. Cardíacas",
@@ -102,14 +89,14 @@ const FIELD_LABELS = {
   statusUpload: "Estado Carga"
 };
 
-// --- UTILIDAD DE RENDERIZADO SEGURO (EVITA PANTALLA BLANCA) ---
+// --- UTILIDAD DE RENDERIZADO SEGURO ---
 const safeRender = (value) => {
   if (value === null || value === undefined) return '-';
   if (typeof value === 'string' || typeof value === 'number') return value;
   if (typeof value === 'boolean') return value ? 'Sí' : 'No';
   if (value instanceof Date) return value.toLocaleDateString();
   try {
-    return JSON.stringify(value); // Último recurso para objetos
+    return JSON.stringify(value); 
   } catch (e) {
     return 'Error en dato';
   }
@@ -175,7 +162,8 @@ const Badge = ({ status }) => {
     'Completado': 'bg-emerald-100 text-emerald-700 border-emerald-200',
     'Cargado': 'bg-gray-100 text-gray-700 border-gray-200',
     'Incompleto': 'bg-red-50 text-red-700 border-red-100',
-    'Pendiente de Carga': 'bg-purple-100 text-purple-700 border-purple-200'
+    'Pendiente de Carga': 'bg-purple-100 text-purple-700 border-purple-200',
+    'En Espera': 'bg-yellow-100 text-yellow-700 border-yellow-200'
   };
   
   let label = status;
@@ -221,6 +209,11 @@ const CopyField = ({ label, value, multiline = false }) => {
     setTimeout(() => setCopied(false), 2000);
   };
   
+  let displayValue = value;
+  if (typeof value === 'object' && value !== null) {
+    displayValue = JSON.stringify(value);
+  }
+
   return (
     <div className="mb-4 group">
       <div className="flex justify-between items-center mb-1">
@@ -231,7 +224,7 @@ const CopyField = ({ label, value, multiline = false }) => {
         </button>
       </div>
       <div className={`bg-gray-50 border border-gray-200 rounded p-3 text-sm text-gray-800 ${multiline ? 'whitespace-pre-wrap' : 'truncate'}`}>
-        {safeRender(value) || <span className="text-gray-400 italic">Sin datos</span>}
+        {displayValue || <span className="text-gray-400 italic">Sin datos</span>}
       </div>
     </div>
   );
@@ -373,6 +366,20 @@ const aiSuggest = (pathology) => {
   return { diag: ['Dolor Crónico'], symp: 'Dolor persistente refractario a tratamiento convencional.' };
 };
 
+const parseDateSafe = (dateStr) => {
+  if (!dateStr) return 0;
+  // Intenta parsear fechas DD/MM/YYYY que vienen de sheets
+  if (typeof dateStr === 'string' && dateStr.includes('/')) {
+    const parts = dateStr.split(' ')[0].split('/'); // Toma solo la parte de fecha
+    if (parts.length === 3) {
+      // Asume DD/MM/YYYY
+      return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+    }
+  }
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+};
+
 const formatDate = (dateStr) => {
   if (!dateStr) return "-";
   try {
@@ -423,7 +430,6 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- FUNCIÓN DE COPIAR RESUMEN ---
   const copyToClipboard = (text) => {
     const textarea = document.createElement('textarea');
     textarea.value = text;
@@ -438,11 +444,10 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
     const pathologyText = getPathologyText(selectedPatient);
     const sug = aiSuggest(pathologyText);
     
-    // Buscar pacientes similares
+    // Filtrar pacientes similares por patología
     const similarPatients = completedHistory.filter(p => {
        const pText = getPathologyText(p).toLowerCase();
        const currentText = pathologyText.toLowerCase();
-       // Si hay al menos 1 palabra clave de 5+ letras que coincida
        const keywords = currentText.split(' ').filter(w => w.length > 4);
        return keywords.some(k => pText.includes(k)) && p.clinicalSummary;
     }).slice(0, 4); 
@@ -450,10 +455,9 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
     setModalConfig({
       isOpen: true, 
       title: "🧠 Asistente & Casos Similares",
-      size: "lg", // Hacemos el modal más grande
+      size: "lg", 
       children: (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Columna Izquierda: Sugerencia Automática */}
           <div className="space-y-4">
             <h4 className="font-bold text-gray-700 border-b pb-2">Diagnóstico Sugerido</h4>
             <div className="bg-violet-50 p-4 rounded-xl border border-violet-100">
@@ -474,11 +478,10 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
             </div>
             
             <div className="bg-gray-50 p-3 rounded text-xs text-gray-500 italic">
-               Basado en la patología del paciente: "{pathologyText}"
+               Basado en la patología: "{pathologyText}"
             </div>
           </div>
 
-          {/* Columna Derecha: Historial de Casos Reales */}
           <div className="space-y-4 border-l pl-6 border-gray-100">
              <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2">
                <BookOpen size={16}/> Casos Similares (Historial)
@@ -504,14 +507,11 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
                      <div className="bg-gray-100 p-2 rounded text-xs text-gray-700 mb-1 max-h-20 overflow-hidden text-ellipsis">
                        {p.clinicalSummary}
                      </div>
-                     <div className="text-xs text-teal-700 mt-1">
-                       <strong>Tx:</strong> {p.treatment}
-                     </div>
                    </div>
                  ))}
                </div>
              ) : (
-               <p className="text-sm text-gray-400 italic">No se encontraron casos similares previos.</p>
+               <p className="text-sm text-gray-400 italic">No se encontraron casos similares.</p>
              )}
           </div>
         </div>
@@ -551,7 +551,14 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
     return (status === 'Incompleto' || status === 'Completando') && upload === 'Pendiente de Carga';
   }), [patients]);
 
-  const completedPatients = useMemo(() => patients.filter(p => p.statusConsultation === 'Completado'), [patients]);
+  // HISTORIAL: Orden Descendente (Nuevos Primero)
+  const completedPatients = useMemo(() => patients.filter(p => {
+    return String(p.statusConsultation).trim() === 'Completado';
+  }).sort((a, b) => {
+    const tA = parseDateSafe(a.entryDate);
+    const tB = parseDateSafe(b.entryDate);
+    return tB - tA; // Descendente: Más reciente (mayor timestamp) primero
+  }), [patients]);
   
   const filteredHistory = useMemo(() => completedPatients.filter(p => {
      const name = cleanText(p.name).toLowerCase();
@@ -601,6 +608,13 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
                   <span className="text-red-500 font-bold block text-xs">Patología / Motivo</span>
                   <p className="italic text-gray-700">{pathologyText}</p>
                 </div>
+                
+                {cleanText(selectedPatient.afflictionTime) && (
+                  <div className="bg-red-50 p-2 rounded border border-red-100 mt-1">
+                    <span className="text-red-500 font-bold block text-xs">Tiempo Afección</span>
+                    <p className="text-gray-700 text-xs">{cleanText(selectedPatient.afflictionTime)}</p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-2">
                    <div className="bg-orange-50 p-2 rounded border border-orange-100">
@@ -808,8 +822,12 @@ export default function App() {
 
   useEffect(() => {
     const initAuth = async () => {
-       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-       else await signInAnonymously(auth);
+      // FIX: Usar signInAnonymously directamente.
+      try {
+        await signInAnonymously(auth);
+      } catch (error) {
+        console.error("Error autenticación anónima:", error);
+      }
     };
     initAuth();
     return onAuthStateChanged(auth, setUser);
