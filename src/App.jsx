@@ -5,7 +5,7 @@ import {
   AlertCircle, FileCheck, Brain, X, Plus, Loader,
   Settings, Link as LinkIcon, RefreshCw, Info, Eye, HeartPulse, Activity, ShieldAlert, Sparkles, BookOpen
 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { 
   getAuth, 
   signInAnonymously, 
@@ -33,7 +33,8 @@ const firebaseConfig = {
   measurementId: "G-MCWHDL1YGL"
 };
 
-const app = initializeApp(firebaseConfig);
+// Inicialización segura de Firebase
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -42,19 +43,35 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 const DEFAULT_RECIPE = "Cannabis Medicinal Quimiotipo III (RATIO 3:1) - 9 Plantas en Floración - 1 a 3 Gotas diarias durante 12 Meses. Se sugiere realizar Análisis Cromatográfico de Muestra. USO ADULTO Y RESPONSABLE";
 const DEFAULT_JUSTIFICATION = "Tratamiento Coadyuvante";
 
+// --- LISTA COMPLETA DE DIAGNÓSTICOS (Hoja DIAG Columna A) ---
 const DIAGNOSIS_OPTIONS = [
-  "Ansiedad", "Artrosis", "Artritis Reumatoide", "Asma Bronquial", 
-  "Bruxismo", "Cefalea", "Cefalea Tensional", "Cervicalgia", 
-  "Colon Irritable", "Depresión", "Dermatitis", "Dolor Crónico", 
-  "Dolor Lumbar", "Dolor Neuropático", "Endometriosis", 
-  "Epilepsia", "Esclerosis Múltiple", "Escoliosis", 
-  "Espasticidad", "Estrés", "Fibromialgia", "Glaucoma", 
-  "Hernia de Disco", "Hipertensión", "Insomnio", 
-  "Lumbalgia", "Lumbociatalgia", "Migraña", 
-  "Neuralgia del Trigémino", "Neuropatía Periférica", 
-  "Parkinson", "Psoriasis", "Síndrome de Fatiga Crónica", 
-  "Trastorno del Espectro Autista", "Trastorno de Ansiedad Generalizada",
-  "Traumatismo", "Otro"
+  "accidente cerebrovascular", "ACV", "alteración de la piel", "angustia", "anorexia", "ansiedad", 
+  "articulación dolorosa", "artralgia", "asma", "asma bronquial", "astenopía", "ataque de pánico", 
+  "bruxismo", "calambre", "calambre en el músculo", "calambre muscular", "calambres menstruales", 
+  "cefalalgia", "cefalea", "cefalodinia", "colitis espástica", "colitis mucosa", "colitis nerviosa", 
+  "colitis ulcerosa", "colon espástico", "colon irritable", "crisis de angustia", "crisis de pánico", 
+  "cuadriplejia", "depresión", "dermatomiositis", "dermatopatía", "dermatosis", "diabetes mellitus", 
+  "diabetes sacarina", "dismenorrea", "dolor", "dolor articular", "dolor crónico", "dolor de cabeza", 
+  "dolor inespecífico en la región lumbar", "dolor lumbar", "dolor muscular", "encefalomielitis miálgica benigna", 
+  "enfermedad de Erb - Goldflam", "enfermedad de Islandia", "enfermedad de Parkinson", "enfermedad depresiva", 
+  "enfermedad funcional del intestino", "enfermedad maníaco-depresiva", "enfermedad neoplásica", "epilepsia", 
+  "epilepsia refractaria", "esclerosis múltiple", "espasticidad", "espasticidad muscular", "espondilitis", 
+  "esquizofrenia", "estado de tensión", "estrés", "fatiga ocular", "fibromialgia", "fractura de hueso", 
+  "glaucoma", "hemiplejía espástica", "hiperreactividad bronquial", "hiperreactividad de la vía aérea", 
+  "hipersensibilidad bronquial", "infección por HIV", "infección por VIH", "infección por virus de la inmunodeficiencia humana", 
+  "insomnio", "jaqueca", "lesion traumatica", "lumbago", "lumbalgia", "lumbalgia crónica", "menstruación dolorosa", 
+  "mialgia", "miastenia grave", "miastenia gravis", "migraña", "miodinia", "mioneuralgia", "miosalgia", "neoplasia", 
+  "neuralgia", "neuropatía", "parálisis agitante", "parálisis temblorosa", "parkinsonismo idiopático", "perdida de apetito", 
+  "piernas inquietas", "polimialgia", "proctocolitis idiopática", "psicosis maníaco-depresiva", 
+  "resistencia farmacológica a medicación antiepiléptica", "síndrome de agotamiento crónico", "síndrome de colon irritable", 
+  "síndrome de fatiga crónica", "síndrome de Gilles de la Tourette", "síndrome de piernas inquietas", "síndrome de Reaven", 
+  "síndrome de resistencia a la insulina", "síndrome de Tourette", "síndrome de Willis-Ekbom", "síndrome dismetabólico X", 
+  "síndrome metabólico X", "síndrome neoplásico", "stress", "tendinitis", "tendonitis", "tensión", "tetraplejia", 
+  "TGD - trastorno generalizado del desarrollo", "trastorno afectivo bipolar", "trastorno bipolar", "trastorno cutáneo", 
+  "trastorno de conducta", "trastorno de la piel", "trastorno de tics vocales y motores múltiples combinados", 
+  "trastorno del espectro autista", "trastorno depresivo", "trastorno fóbico", "trastorno generalizado del desarrollo", 
+  "trastorno obsesivo-compulsivo", "trastorno por estrés postraumático", "trastorno por stress postraumático", 
+  "trastorno por tensión postraumática", "traumatismo", "vista fatigada"
 ];
 
 // --- URL FIJA DE APPS SCRIPT ---
@@ -67,7 +84,7 @@ const FIELD_LABELS = {
   reprocannCode: "Código Reprocann",
   patologia: "Patología / Motivo",
   afflictionTime: "Tiempo Afección (Col Y)",
-  priorTreatment: "Tratamiento Previo",
+  priorTreatment: "Tratamiento Previo (Col AD)",
   medication: "Otras Medicaciones",
   cardiac: "Enf. Cardíacas",
   psych: "Trat. Psicológico",
@@ -100,6 +117,37 @@ const safeRender = (value) => {
   } catch (e) {
     return 'Error en dato';
   }
+};
+
+const parseDateSafe = (dateStr) => {
+  if (!dateStr) return 0;
+  const str = String(dateStr).trim();
+  // Intenta parsear fechas DD/MM/YYYY HH:MM:SS (Típico de Google Sheets en Latam)
+  // Regex para capturar dia, mes, año, hora, min, seg
+  const match = str.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (match) {
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1; // Meses en JS son 0-11
+    const year = parseInt(match[3], 10);
+    const hour = match[4] ? parseInt(match[4], 10) : 0;
+    const minute = match[5] ? parseInt(match[5], 10) : 0;
+    const second = match[6] ? parseInt(match[6], 10) : 0;
+    return new Date(year, month, day, hour, minute, second).getTime();
+  }
+
+  // Intento fallback ISO
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return "-";
+  try {
+    const timestamp = parseDateSafe(dateStr);
+    if (timestamp === 0) return String(dateStr);
+    const d = new Date(timestamp);
+    return d.toLocaleDateString("es-AR", { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch (e) { return String(dateStr); }
 };
 
 // --- SERVICIO API ---
@@ -366,29 +414,6 @@ const aiSuggest = (pathology) => {
   return { diag: ['Dolor Crónico'], symp: 'Dolor persistente refractario a tratamiento convencional.' };
 };
 
-const parseDateSafe = (dateStr) => {
-  if (!dateStr) return 0;
-  // Intenta parsear fechas DD/MM/YYYY que vienen de sheets
-  if (typeof dateStr === 'string' && dateStr.includes('/')) {
-    const parts = dateStr.split(' ')[0].split('/'); // Toma solo la parte de fecha
-    if (parts.length === 3) {
-      // Asume DD/MM/YYYY
-      return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
-    }
-  }
-  const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? 0 : d.getTime();
-};
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return "-";
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return String(dateStr);
-    return d.toLocaleDateString("es-AR", { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  } catch (e) { return String(dateStr); }
-};
-
 // --- DOCTOR DASHBOARD ---
 const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory }) => {
   const [activeTab, setActiveTab] = useState('pendientes');
@@ -444,13 +469,16 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
     const pathologyText = getPathologyText(selectedPatient);
     const sug = aiSuggest(pathologyText);
     
-    // Filtrar pacientes similares por patología
-    const similarPatients = completedHistory.filter(p => {
+    // Filtrar pacientes similares por patología y ordenar por los mas nuevos
+    const similarPatients = completedHistory
+    .filter(p => {
        const pText = getPathologyText(p).toLowerCase();
        const currentText = pathologyText.toLowerCase();
        const keywords = currentText.split(' ').filter(w => w.length > 4);
        return keywords.some(k => pText.includes(k)) && p.clinicalSummary;
-    }).slice(0, 4); 
+    })
+    .sort((a, b) => parseDateSafe(b.entryDate) - parseDateSafe(a.entryDate)) // Ordenar descendente
+    .slice(0, 4); // Tomar los 4 más recientes
 
     setModalConfig({
       isOpen: true, 
@@ -507,6 +535,9 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
                      <div className="bg-gray-100 p-2 rounded text-xs text-gray-700 mb-1 max-h-20 overflow-hidden text-ellipsis">
                        {p.clinicalSummary}
                      </div>
+                     <div className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                        <Clock size={10} /> {formatDate(p.entryDate)}
+                     </div>
                    </div>
                  ))}
                </div>
@@ -551,13 +582,12 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
     return (status === 'Incompleto' || status === 'Completando') && upload === 'Pendiente de Carga';
   }), [patients]);
 
-  // HISTORIAL: Orden Descendente (Nuevos Primero)
   const completedPatients = useMemo(() => patients.filter(p => {
     return String(p.statusConsultation).trim() === 'Completado';
   }).sort((a, b) => {
     const tA = parseDateSafe(a.entryDate);
     const tB = parseDateSafe(b.entryDate);
-    return tB - tA; // Descendente: Más reciente (mayor timestamp) primero
+    return tB - tA; 
   }), [patients]);
   
   const filteredHistory = useMemo(() => completedPatients.filter(p => {
@@ -741,6 +771,7 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
   );
 };
 
+// ... Rest of AdminDashboard and App (Main) remains exactly the same as previously correct version ...
 const AdminDashboard = ({ patients, onUpdateStatus }) => {
   const readyForUpload = useMemo(() => patients.filter(p => {
     const status = String(p.statusConsultation).trim();
