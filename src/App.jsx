@@ -22,16 +22,34 @@ import {
   updateDoc
 } from 'firebase/firestore';
 
-// --- CONFIGURACIÓN FIREBASE ---
-const firebaseConfig = {
-  apiKey: "AIzaSyAUD1Ve1O7IFfMpUMo6pbMNEiK-VvLWG-g",
+// --- CONFIGURACIÓN FIREBASE ROBUSTA ---
+// INTENTA LEER LA CONFIGURACIÓN. SI FALLA, USA UN PLACEHOLDER PARA NO ROMPER LA APP.
+const getFirebaseConfig = () => {
+  try {
+    if (typeof __firebase_config !== 'undefined') {
+      return JSON.parse(__firebase_config);
+    }
+  } catch (e) {
+    console.warn("Configuración global de Firebase no encontrada.");
+  }
+  
+  // ¡IMPORTANTE! REEMPLAZA ESTO CON TUS DATOS REALES DE FIREBASE SI LA APP SE VE EN BLANCO O NO CONECTA
+  return {
+    apiKey: "AIzaSyAUD1Ve1O7IFfMpUMo6pbMNEiK-VvLWG-g",
   authDomain: "sistema-doctora.firebaseapp.com",
   projectId: "sistema-doctora",
   storageBucket: "sistema-doctora.firebasestorage.app",
   messagingSenderId: "691641796580",
   appId: "1:691641796580:web:82374ff9323d338930a9f1",
   measurementId: "G-MCWHDL1YGL"
+  };
 };
+
+const firebaseConfig = getFirebaseConfig();
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // --- TEXTOS POR DEFECTO ---
 const DEFAULT_RECIPE = "Cannabis Medicinal Quimiotipo III (RATIO 3:1) - 9 Plantas en Floración - 1 a 3 Gotas diarias durante 12 Meses. Se sugiere realizar Análisis Cromatográfico de Muestra. USO ADULTO Y RESPONSABLE";
@@ -82,6 +100,19 @@ const FIELD_LABELS = {
   entryDate: "Fecha Ingreso",
   statusConsultation: "Estado Consulta",
   statusUpload: "Estado Carga"
+};
+
+// --- UTILIDAD DE RENDERIZADO SEGURO (EVITA PANTALLA BLANCA) ---
+const safeRender = (value) => {
+  if (value === null || value === undefined) return '-';
+  if (typeof value === 'string' || typeof value === 'number') return value;
+  if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+  if (value instanceof Date) return value.toLocaleDateString();
+  try {
+    return JSON.stringify(value); // Último recurso para objetos
+  } catch (e) {
+    return 'Error en dato';
+  }
 };
 
 // --- SERVICIO API ---
@@ -153,7 +184,7 @@ const Badge = ({ status }) => {
 
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[status] || styles['Pendiente']}`}>
-      {label}
+      {safeRender(label)}
     </span>
   );
 };
@@ -168,7 +199,7 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
     ai: "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600 border-none",
   };
   return (
-    <button onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 disabled:opacity-50 ${variants[variant]} ${className}`} disabled={disabled}>
+    <button onClick={onClick} className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 disabled:opacity-50 ${variants[variant]} ${className}`} disabled={disabled} title={title}>
       {Icon && <Icon size={18} />}
       {children}
     </button>
@@ -190,11 +221,6 @@ const CopyField = ({ label, value, multiline = false }) => {
     setTimeout(() => setCopied(false), 2000);
   };
   
-  let displayValue = value;
-  if (typeof value === 'object' && value !== null) {
-    displayValue = JSON.stringify(value);
-  }
-
   return (
     <div className="mb-4 group">
       <div className="flex justify-between items-center mb-1">
@@ -205,7 +231,7 @@ const CopyField = ({ label, value, multiline = false }) => {
         </button>
       </div>
       <div className={`bg-gray-50 border border-gray-200 rounded p-3 text-sm text-gray-800 ${multiline ? 'whitespace-pre-wrap' : 'truncate'}`}>
-        {displayValue || <span className="text-gray-400 italic">Sin datos</span>}
+        {safeRender(value) || <span className="text-gray-400 italic">Sin datos</span>}
       </div>
     </div>
   );
@@ -547,7 +573,7 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
             {Object.keys(FIELD_LABELS).map(key => (
               <div key={key} className="flex justify-between border-b pb-1">
                 <span className="font-bold text-gray-500">{FIELD_LABELS[key]}</span>
-                <span className="text-right max-w-[60%] break-words">{key === 'entryDate' ? formatDate(selectedPatient[key]) : String(selectedPatient[key] || '-')}</span>
+                <span className="text-right max-w-[60%] break-words">{key === 'entryDate' ? formatDate(selectedPatient[key]) : safeRender(selectedPatient[key])}</span>
               </div>
             ))}
           </div>
@@ -599,7 +625,7 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
 
                 <div className="bg-yellow-50 p-2 rounded border border-yellow-200">
                   <span className="text-yellow-800 font-bold block text-xs flex items-center gap-1"><Info size={12}/> Tratamiento Previo</span>
-                  <p className="text-gray-900 font-medium">{cleanText(selectedPatient.priorTreatment) || "Sin datos"}</p>
+                  <p className="text-gray-900 font-medium">{safeRender(selectedPatient.priorTreatment) || "Sin datos"}</p>
                 </div>
                  
                  {cleanText(selectedPatient.medication) && (
