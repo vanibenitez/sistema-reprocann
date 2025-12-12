@@ -84,7 +84,7 @@ const FIELD_LABELS = {
   reprocannCode: "Código Reprocann",
   patologia: "Patología / Motivo",
   afflictionTime: "Tiempo Afección (Col Y)",
-  priorTreatment: "Tratamiento Previo (Col AD)",
+  priorTreatment: "Tratamiento Previo",
   medication: "Otras Medicaciones",
   cardiac: "Enf. Cardíacas",
   psych: "Trat. Psicológico",
@@ -122,19 +122,17 @@ const safeRender = (value) => {
 const parseDateSafe = (dateStr) => {
   if (!dateStr) return 0;
   const str = String(dateStr).trim();
-  // Intenta parsear fechas DD/MM/YYYY HH:MM:SS (Típico de Google Sheets en Latam)
-  // Regex para capturar dia, mes, año, hora, min, seg
+  // Intenta parsear fechas DD/MM/YYYY HH:MM:SS
   const match = str.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if (match) {
     const day = parseInt(match[1], 10);
-    const month = parseInt(match[2], 10) - 1; // Meses en JS son 0-11
+    const month = parseInt(match[2], 10) - 1; 
     const year = parseInt(match[3], 10);
     const hour = match[4] ? parseInt(match[4], 10) : 0;
     const minute = match[5] ? parseInt(match[5], 10) : 0;
     const second = match[6] ? parseInt(match[6], 10) : 0;
     return new Date(year, month, day, hour, minute, second).getTime();
   }
-
   // Intento fallback ISO
   const d = new Date(str);
   return isNaN(d.getTime()) ? 0 : d.getTime();
@@ -693,20 +691,25 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
                 
                 <div>
                   <div className="flex justify-between mb-1"><label className="font-bold text-sm">Resumen HC</label> <span className="text-xs text-teal-600 cursor-pointer" onClick={() => setFormData({...formData, clinicalSummary: generateAutoSummary(selectedPatient)})}>Restaurar</span></div>
-                  <textarea className="w-full p-3 border rounded h-24 text-sm" value={formData.clinicalSummary} onChange={e => setFormData({...formData, clinicalSummary: e.target.value})}/>
+                  <textarea className="w-full p-3 border rounded h-60 text-sm focus:ring-2 focus:ring-teal-500 outline-none" value={formData.clinicalSummary} onChange={e => setFormData({...formData, clinicalSummary: e.target.value})}/>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-bold mb-1">Síntomas</label><input className="w-full p-2 border rounded" value={formData.symptoms} onChange={e => setFormData({...formData, symptoms: e.target.value})}/></div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Tratamiento Convencional</label>
-                    <input className="w-full p-2 border rounded bg-yellow-50" value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} placeholder="Precarga Automática"/>
-                  </div>
+                {/* Síntomas - Agrandado y cambiado a Textarea */}
+                <div>
+                   <label className="block text-sm font-bold mb-1">Síntomas</label>
+                   <textarea className="w-full p-3 border rounded h-32" value={formData.symptoms} onChange={e => setFormData({...formData, symptoms: e.target.value})}/>
                 </div>
 
+                {/* Tratamiento - Input simple */}
+                <div>
+                  <label className="block text-sm font-bold mb-1">Tratamiento Convencional</label>
+                  <input className="w-full p-2 border rounded bg-yellow-50" value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} placeholder="Precarga Automática"/>
+                </div>
+
+                {/* Receta y Justificación - Achicados */}
                 <div className="grid grid-cols-2 gap-4">
-                   <div><label className="block text-sm font-bold mb-1">Receta</label><textarea className="w-full p-2 border rounded h-24 text-xs" value={formData.recipe} onChange={e => setFormData({...formData, recipe: e.target.value})}/></div>
-                   <div><label className="block text-sm font-bold mb-1">Justificación</label><textarea className="w-full p-2 border rounded h-24 text-sm" value={formData.justification} onChange={e => setFormData({...formData, justification: e.target.value})}/></div>
+                   <div><label className="block text-sm font-bold mb-1">Receta</label><textarea className="w-full p-2 border rounded h-16 text-xs" value={formData.recipe} onChange={e => setFormData({...formData, recipe: e.target.value})}/></div>
+                   <div><label className="block text-sm font-bold mb-1">Justificación</label><textarea className="w-full p-2 border rounded h-16 text-sm" value={formData.justification} onChange={e => setFormData({...formData, justification: e.target.value})}/></div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4 border-t">
@@ -853,12 +856,8 @@ export default function App() {
 
   useEffect(() => {
     const initAuth = async () => {
-      // FIX: Usar signInAnonymously directamente.
-      try {
-        await signInAnonymously(auth);
-      } catch (error) {
-        console.error("Error autenticación anónima:", error);
-      }
+       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+       else await signInAnonymously(auth);
     };
     initAuth();
     return onAuthStateChanged(auth, setUser);
