@@ -691,19 +691,19 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
                 
                 <div>
                   <div className="flex justify-between mb-1"><label className="font-bold text-sm">Resumen HC</label> <span className="text-xs text-teal-600 cursor-pointer" onClick={() => setFormData({...formData, clinicalSummary: generateAutoSummary(selectedPatient)})}>Restaurar</span></div>
-                  <textarea className="w-full p-3 border rounded h-60 text-sm focus:ring-2 focus:ring-teal-500 outline-none" value={formData.clinicalSummary} onChange={e => setFormData({...formData, clinicalSummary: e.target.value})}/>
+                  <textarea className="w-full p-3 border rounded h-[120px] text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y" value={formData.clinicalSummary} onChange={e => setFormData({...formData, clinicalSummary: e.target.value})}/>
                 </div>
 
-                {/* Síntomas - Agrandado y cambiado a Textarea */}
+                {/* Síntomas - Reducido a aprox 66% */}
                 <div>
                    <label className="block text-sm font-bold mb-1">Síntomas</label>
-                   <textarea className="w-full p-3 border rounded h-32" value={formData.symptoms} onChange={e => setFormData({...formData, symptoms: e.target.value})}/>
+                   <textarea className="w-full p-3 border rounded h-[85px] text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y" value={formData.symptoms} onChange={e => setFormData({...formData, symptoms: e.target.value})}/>
                 </div>
 
-                {/* Tratamiento - Input simple */}
+                {/* Tratamiento - Convertido a Textarea y Ampliado significativamente */}
                 <div>
                   <label className="block text-sm font-bold mb-1">Tratamiento Convencional</label>
-                  <input className="w-full p-2 border rounded bg-yellow-50" value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} placeholder="Precarga Automática"/>
+                  <textarea className="w-full p-3 border rounded bg-yellow-50 h-[240px] text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y" value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} placeholder="Escriba aquí el tratamiento detallado..."/>
                 </div>
 
                 {/* Receta y Justificación - Achicados */}
@@ -774,7 +774,6 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
   );
 };
 
-// ... Rest of AdminDashboard and App (Main) remains exactly the same as previously correct version ...
 const AdminDashboard = ({ patients, onUpdateStatus }) => {
   const readyForUpload = useMemo(() => patients.filter(p => {
     const status = String(p.statusConsultation).trim();
