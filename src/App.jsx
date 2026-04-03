@@ -676,6 +676,25 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
                        <p className="text-gray-800 text-xs">{cleanText(selectedPatient.medication)}</p>
                     </div>
                  )}
+
+                 {/* SECCIÓN NUEVA: Comprobante de Pago para la Doctora */}
+                 {cleanText(selectedPatient.paymentProofUrl) && selectedPatient.paymentProofUrl !== '-' && (
+                   <div className="bg-emerald-50 p-3 rounded border border-emerald-200 mt-4 flex justify-between items-center shadow-sm">
+                      <span className="text-emerald-800 font-bold text-xs flex items-center gap-1">
+                        <FileCheck size={14}/> Comprobante de Pago
+                      </span>
+                      <a 
+                        href={selectedPatient.paymentProofUrl} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-md hover:bg-emerald-700 transition-colors shadow-sm font-semibold flex items-center gap-1"
+                        title="Abrir imagen del comprobante"
+                      >
+                        <Eye size={12}/> Ver
+                      </a>
+                   </div>
+                 )}
+
               </div>
             </Card>
           </div>
@@ -694,13 +713,13 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
                   <textarea className="w-full p-3 border rounded h-[120px] text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y" value={formData.clinicalSummary} onChange={e => setFormData({...formData, clinicalSummary: e.target.value})}/>
                 </div>
 
-                {/* Síntomas - Reducido a aprox 66% */}
+                {/* Síntomas - Agrandado y cambiado a Textarea */}
                 <div>
                    <label className="block text-sm font-bold mb-1">Síntomas</label>
                    <textarea className="w-full p-3 border rounded h-[85px] text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y" value={formData.symptoms} onChange={e => setFormData({...formData, symptoms: e.target.value})}/>
                 </div>
 
-                {/* Tratamiento - Convertido a Textarea y Ampliado significativamente */}
+                {/* Tratamiento - Input simple */}
                 <div>
                   <label className="block text-sm font-bold mb-1">Tratamiento Convencional</label>
                   <textarea className="w-full p-3 border rounded bg-yellow-50 h-[240px] text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y" value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} placeholder="Escriba aquí el tratamiento detallado..."/>
