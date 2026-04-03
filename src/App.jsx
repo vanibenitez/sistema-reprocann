@@ -122,7 +122,6 @@ const safeRender = (value) => {
 const parseDateSafe = (dateStr) => {
   if (!dateStr) return 0;
   const str = String(dateStr).trim();
-  // Intenta parsear fechas DD/MM/YYYY HH:MM:SS
   const match = str.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if (match) {
     const day = parseInt(match[1], 10);
@@ -133,7 +132,6 @@ const parseDateSafe = (dateStr) => {
     const second = match[6] ? parseInt(match[6], 10) : 0;
     return new Date(year, month, day, hour, minute, second).getTime();
   }
-  // Intento fallback ISO
   const d = new Date(str);
   return isNaN(d.getTime()) ? 0 : d.getTime();
 };
@@ -467,7 +465,6 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
     const pathologyText = getPathologyText(selectedPatient);
     const sug = aiSuggest(pathologyText);
     
-    // Filtrar pacientes similares por patología y ordenar por los mas nuevos
     const similarPatients = completedHistory
     .filter(p => {
        const pText = getPathologyText(p).toLowerCase();
@@ -475,8 +472,8 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
        const keywords = currentText.split(' ').filter(w => w.length > 4);
        return keywords.some(k => pText.includes(k)) && p.clinicalSummary;
     })
-    .sort((a, b) => parseDateSafe(b.entryDate) - parseDateSafe(a.entryDate)) // Ordenar descendente
-    .slice(0, 4); // Tomar los 4 más recientes
+    .sort((a, b) => parseDateSafe(b.entryDate) - parseDateSafe(a.entryDate))
+    .slice(0, 4); 
 
     setModalConfig({
       isOpen: true, 
@@ -552,7 +549,7 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
     const statusToSend = type === 'Borrador' ? 'Incompleto' : 'Completado';
     setModalConfig({
       isOpen: true, title: type === 'Borrador' ? "Guardar Borrador" : "Finalizar Consulta",
-      children: (<p className="text-gray-600">{type === 'Borrador' ? "Se guardarán los cambios y el paciente seguirá en tu lista de pendientes." : "Se marcará como COMPLETADO y pasará al área administrativa. Se actualizará la hoja de consentimiento."}</p>),
+      children: (<p className="text-gray-600">{type === 'Borrador' ? "Se guardarán los cambios y el paciente seguirá en tu lista de pendientes." : "Se marcará como COMPLETADO y pasará al área administrativa."}</p>),
       onConfirm: () => executeSave(statusToSend)
     });
   };
@@ -722,7 +719,7 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
                 {/* Tratamiento - Input simple */}
                 <div>
                   <label className="block text-sm font-bold mb-1">Tratamiento Convencional</label>
-                  <textarea className="w-full p-3 border rounded bg-yellow-50 h-[120px] text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y" value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} placeholder="Escriba aquí el tratamiento detallado..."/>
+                  <textarea className="w-full p-3 border rounded bg-yellow-50 h-[240px] text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y" value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} placeholder="Escriba aquí el tratamiento detallado..."/>
                 </div>
 
                 {/* Receta y Justificación - Achicados */}
@@ -810,11 +807,9 @@ const AdminDashboard = ({ patients, onUpdateStatus }) => {
     }
   };
 
-  // NUEVA FUNCIÓN: Llama al servidor local de Python
   const handleAutoVincular = async () => {
     try {
       setIsBotRunning(true);
-      // Llama a tu computadora local en el puerto 5000
       const response = await fetch("http://127.0.0.1:5000/vincular", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -858,7 +853,6 @@ const AdminDashboard = ({ patients, onUpdateStatus }) => {
               <h4 className="font-bold text-purple-800 border-b pb-2">Documentación y Comprobantes</h4>
               <CopyField label="Código Vinculación" value={selectedPatient.reprocannCode} />
               
-              {/* BOTÓN DE COMPROBANTE DE PAGO MEJORADO */}
               <div className="pt-4 mt-2">
                 {hasPago ? (
                    <a 
@@ -879,7 +873,6 @@ const AdminDashboard = ({ patients, onUpdateStatus }) => {
               </div>
             </Card>
 
-            {/* BOTÓN PARA EJECUTAR PYTHON */}
             <button 
               onClick={handleAutoVincular} 
               disabled={isBotRunning}
@@ -915,3 +908,118 @@ const AdminDashboard = ({ patients, onUpdateStatus }) => {
     </div>
   );
 };
+
+// --- APP MAIN ---
+export default function App() {
+  const [role, setRole] = useState(null);
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [sheetsUrl, setSheetsUrl] = useState(GOOGLE_SCRIPT_URL);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const initAuth = async () => {
+       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+       else await signInAnonymously(auth);
+    };
+    initAuth();
+    return onAuthStateChanged(auth, setUser);
+  }, []);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      if (sheetsUrl) {
+        try {
+          const data = await apiService.getPatients(sheetsUrl);
+          setPatients(data);
+        } catch (error) {
+          console.error("Error conectando con Sheets: " + error.message);
+        }
+        setLoading(false);
+      } else if (user) {
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'patients'), orderBy('entryDate', 'desc'));
+        onSnapshot(q, (snapshot) => {
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setPatients(data);
+          setLoading(false);
+        });
+      }
+    };
+    loadData();
+  }, [user, sheetsUrl]);
+
+  const handleUpdatePatient = async (data) => {
+    if (sheetsUrl) {
+      await apiService.saveConsultation(data);
+      const newData = await apiService.getPatients(sheetsUrl);
+      setPatients(newData);
+    } else {
+      // Demo fallback
+    }
+  };
+
+  const handleUpdateStatus = async (dni, status) => {
+    if (sheetsUrl) {
+      await apiService.updateStatus(dni, status);
+      const newData = await apiService.getPatients(sheetsUrl);
+      setPatients(newData);
+    }
+  };
+
+  if (!role) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-teal-500 to-blue-600 flex items-center justify-center p-4">
+        <button onClick={() => setConfigOpen(!configOpen)} className="absolute top-4 right-4 bg-white/20 p-2 rounded-full text-white hover:bg-white/30 transition-all">
+          <Settings size={24} />
+        </button>
+        {configOpen && (
+          <div className="absolute top-16 right-4 w-96 bg-white p-4 rounded-xl shadow-2xl z-50 animate-fadeIn">
+            <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><LinkIcon size={16}/> Conexión Sheets</h3>
+            <input type="text" className="w-full p-2 border rounded mb-2 text-xs font-mono text-gray-600" value={sheetsUrl} onChange={(e) => setSheetsUrl(e.target.value)}/>
+            <div className="flex justify-end gap-2"><Button variant="primary" size="sm" onClick={() => setConfigOpen(false)}>Guardar</Button></div>
+          </div>
+        )}
+        <Card className="w-full max-w-lg p-8 text-center space-y-8 shadow-2xl">
+          <h1 className="text-4xl font-extrabold text-gray-800">Sistema Reprocann</h1>
+          <div className="space-y-4">
+            <button onClick={() => setRole('doctor')} className="w-full p-5 bg-white border border-gray-100 shadow rounded-2xl flex items-center gap-4 hover:shadow-lg transition-all">
+              <div className="bg-teal-100 p-3 rounded-full text-teal-600"><Stethoscope size={24}/></div>
+              <div className="text-left"><div className="font-bold text-gray-800">Soy la Doctora</div><div className="text-sm text-gray-500">Juliana Mijalchuk</div></div>
+            </button>
+            <button onClick={() => setRole('admin')} className="w-full p-5 bg-white border border-gray-100 shadow rounded-2xl flex items-center gap-4 hover:shadow-lg transition-all">
+              <div className="bg-purple-100 p-3 rounded-full text-purple-600"><FileText size={24}/></div>
+              <div className="text-left"><div className="font-bold text-gray-800">Soy Administrativo</div><div className="text-sm text-gray-500">Carga y Vinculación</div></div>
+            </button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-white border-b px-6 py-3 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg ${role === 'doctor' ? 'bg-teal-100 text-teal-600' : 'bg-purple-100 text-purple-600'}`}>
+            {role === 'doctor' ? <Stethoscope/> : <FileText/>}
+          </div>
+          <div>
+            <h1 className="font-bold text-gray-800">{role === 'doctor' ? 'Consultorio Digital' : 'Centro de Carga'}</h1>
+            <p className="text-xs text-gray-500">Conectado a Sheets</p>
+          </div>
+        </div>
+        <Button variant="ghost" onClick={() => setRole(null)} icon={LogOut}>Salir</Button>
+      </header>
+      <main className="max-w-[1600px] mx-auto p-6">
+        {loading ? <div className="flex justify-center py-20"><Loader className="animate-spin text-teal-600"/></div> : (
+          role === 'doctor' 
+            ? <DoctorDashboard patients={patients} onUpdatePatient={handleUpdatePatient} loading={loading} completedHistory={patients.filter(p => p.statusConsultation === 'Completado')} />
+            : <AdminDashboard patients={patients} onUpdateStatus={handleUpdateStatus} />
+        )}
+      </main>
+    </div>
+  );
+}
