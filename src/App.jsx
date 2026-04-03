@@ -801,15 +801,39 @@ const AdminDashboard = ({ patients, onUpdateStatus }) => {
   }), [patients]);
 
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [isBotRunning, setIsBotRunning] = useState(false);
 
   const handleUpload = async () => {
-    if(confirm(`¿Confirmar carga de ${selectedPatient.name}?`)) {
+    if(confirm(`¿Confirmar que ya cargaste a ${selectedPatient.name} en Reprocann?`)) {
       await onUpdateStatus(selectedPatient.dni, 'Cargado');
       setSelectedPatient(null);
     }
   };
 
+  // NUEVA FUNCIÓN: Llama al servidor local de Python
+  const handleAutoVincular = async () => {
+    try {
+      setIsBotRunning(true);
+      // Llama a tu computadora local en el puerto 5000
+      const response = await fetch("http://127.0.0.1:5000/vincular", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dni: selectedPatient.dni })
+      });
+      
+      if (!response.ok) throw new Error("Error en servidor local");
+      
+      alert(`🤖 Bot iniciado con éxito para el DNI: ${selectedPatient.dni}\nRevisa la ventana negra (Consola) en tu computadora.`);
+    } catch (error) {
+      alert("❌ Error: No se pudo conectar con el bot.\n\nAsegúrate de que el script de Python (Servidor Flask) esté corriendo en tu computadora y la ventana negra esté abierta.");
+    } finally {
+      setIsBotRunning(false);
+    }
+  };
+
   if (selectedPatient) {
+    const hasPago = cleanText(selectedPatient.paymentProofUrl) && selectedPatient.paymentProofUrl !== '-';
+
     return (
       <div className="flex flex-col h-full animate-fadeIn">
         <div className="flex items-center gap-2 mb-6"><Button variant="ghost" onClick={() => setSelectedPatient(null)} icon={ChevronLeft}>Volver</Button><h2 className="text-xl font-bold">Carga Administrativa</h2></div>
@@ -817,6 +841,7 @@ const AdminDashboard = ({ patients, onUpdateStatus }) => {
           <h3 className="text-2xl font-bold">{selectedPatient.name}</h3><p>DNI: {selectedPatient.dni}</p>
           <div className="mt-2 text-sm bg-white/20 inline-block px-2 py-1 rounded">COD: {selectedPatient.reprocannCode}</div>
         </div></Card>
+        
         <div className="grid md:grid-cols-2 gap-6">
           <Card className="p-6 space-y-4">
             <h4 className="font-bold text-teal-800 border-b pb-2">Datos Médicos</h4>
@@ -827,18 +852,46 @@ const AdminDashboard = ({ patients, onUpdateStatus }) => {
             <CopyField label="Justificación" value={selectedPatient.justification} multiline />
             <CopyField label="Receta" value={selectedPatient.recipe} multiline />
           </Card>
+          
           <div className="space-y-4">
             <Card className="p-6 space-y-4">
-              <h4 className="font-bold text-purple-800 border-b pb-2">Documentación</h4>
+              <h4 className="font-bold text-purple-800 border-b pb-2">Documentación y Comprobantes</h4>
               <CopyField label="Código Vinculación" value={selectedPatient.reprocannCode} />
-              <div className="py-2 border-t mt-2">
-                 <span className={`flex items-center gap-2 ${selectedPatient.hasSignature ? 'text-green-600' : 'text-red-600'}`}>
-                   {selectedPatient.hasSignature ? <FileCheck/> : <AlertCircle/>} {selectedPatient.hasSignature ? 'Firma OK' : 'Falta Firma'}
-                 </span>
-                 {selectedPatient.paymentProofUrl && <a href={selectedPatient.paymentProofUrl} target="_blank" className="block mt-2 text-blue-600 underline text-sm">Ver Comprobante</a>}
+              
+              {/* BOTÓN DE COMPROBANTE DE PAGO MEJORADO */}
+              <div className="pt-4 mt-2">
+                {hasPago ? (
+                   <a 
+                     href={selectedPatient.paymentProofUrl} 
+                     target="_blank" 
+                     rel="noreferrer"
+                     className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-emerald-400 to-teal-500 text-white py-4 rounded-xl font-bold text-lg shadow-md hover:shadow-lg hover:scale-[1.02] transition-all"
+                   >
+                     <FileCheck size={24}/>
+                     Ver Comprobante de Pago
+                   </a>
+                ) : (
+                   <div className="bg-gray-100 p-4 rounded-xl text-center text-gray-500 flex flex-col items-center gap-2 border border-gray-200">
+                      <AlertCircle size={24}/>
+                      <span className="font-semibold">Sin Comprobante de Pago</span>
+                   </div>
+                )}
               </div>
             </Card>
-            <Button onClick={handleUpload} variant="success" className="w-full py-4 text-lg">MARCAR COMO CARGADO</Button>
+
+            {/* BOTÓN PARA EJECUTAR PYTHON */}
+            <button 
+              onClick={handleAutoVincular} 
+              disabled={isBotRunning}
+              className={`w-full py-4 text-lg font-bold text-white rounded-xl shadow-md flex items-center justify-center gap-2 transition-all ${isBotRunning ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700 hover:scale-[1.02]'}`}
+            >
+              {isBotRunning ? <Loader className="animate-spin" /> : <Brain />}
+              VINCULAR PACIENTE (BOT)
+            </button>
+
+            <Button onClick={handleUpload} variant="success" className="w-full py-4 text-lg mt-2">
+               MARCAR COMO CARGADO MANUALMENTE
+            </Button>
           </div>
         </div>
       </div>
@@ -862,118 +915,3 @@ const AdminDashboard = ({ patients, onUpdateStatus }) => {
     </div>
   );
 };
-
-// --- APP MAIN ---
-export default function App() {
-  const [role, setRole] = useState(null);
-  const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [sheetsUrl, setSheetsUrl] = useState(GOOGLE_SCRIPT_URL);
-  const [configOpen, setConfigOpen] = useState(false);
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    const initAuth = async () => {
-       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-       else await signInAnonymously(auth);
-    };
-    initAuth();
-    return onAuthStateChanged(auth, setUser);
-  }, []);
-
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      if (sheetsUrl) {
-        try {
-          const data = await apiService.getPatients(sheetsUrl);
-          setPatients(data);
-        } catch (error) {
-          console.error("Error conectando con Sheets: " + error.message);
-        }
-        setLoading(false);
-      } else if (user) {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'patients'), orderBy('entryDate', 'desc'));
-        onSnapshot(q, (snapshot) => {
-          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setPatients(data);
-          setLoading(false);
-        });
-      }
-    };
-    loadData();
-  }, [user, sheetsUrl]);
-
-  const handleUpdatePatient = async (data) => {
-    if (sheetsUrl) {
-      await apiService.saveConsultation(data);
-      const newData = await apiService.getPatients(sheetsUrl);
-      setPatients(newData);
-    } else {
-      // Demo fallback
-    }
-  };
-
-  const handleUpdateStatus = async (dni, status) => {
-    if (sheetsUrl) {
-      await apiService.updateStatus(dni, status);
-      const newData = await apiService.getPatients(sheetsUrl);
-      setPatients(newData);
-    }
-  };
-
-  if (!role) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-teal-500 to-blue-600 flex items-center justify-center p-4">
-        <button onClick={() => setConfigOpen(!configOpen)} className="absolute top-4 right-4 bg-white/20 p-2 rounded-full text-white hover:bg-white/30 transition-all">
-          <Settings size={24} />
-        </button>
-        {configOpen && (
-          <div className="absolute top-16 right-4 w-96 bg-white p-4 rounded-xl shadow-2xl z-50 animate-fadeIn">
-            <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2"><LinkIcon size={16}/> Conexión Sheets</h3>
-            <input type="text" className="w-full p-2 border rounded mb-2 text-xs font-mono text-gray-600" value={sheetsUrl} onChange={(e) => setSheetsUrl(e.target.value)}/>
-            <div className="flex justify-end gap-2"><Button variant="primary" size="sm" onClick={() => setConfigOpen(false)}>Guardar</Button></div>
-          </div>
-        )}
-        <Card className="w-full max-w-lg p-8 text-center space-y-8 shadow-2xl">
-          <h1 className="text-4xl font-extrabold text-gray-800">Sistema Reprocann</h1>
-          <div className="space-y-4">
-            <button onClick={() => setRole('doctor')} className="w-full p-5 bg-white border border-gray-100 shadow rounded-2xl flex items-center gap-4 hover:shadow-lg transition-all">
-              <div className="bg-teal-100 p-3 rounded-full text-teal-600"><Stethoscope size={24}/></div>
-              <div className="text-left"><div className="font-bold text-gray-800">Soy la Doctora</div><div className="text-sm text-gray-500">Juliana Mijalchuk</div></div>
-            </button>
-            <button onClick={() => setRole('admin')} className="w-full p-5 bg-white border border-gray-100 shadow rounded-2xl flex items-center gap-4 hover:shadow-lg transition-all">
-              <div className="bg-purple-100 p-3 rounded-full text-purple-600"><FileText size={24}/></div>
-              <div className="text-left"><div className="font-bold text-gray-800">Soy Administrativo</div><div className="text-sm text-gray-500">Carga y Vinculación</div></div>
-            </button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b px-6 py-3 flex justify-between items-center sticky top-0 z-30 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${role === 'doctor' ? 'bg-teal-100 text-teal-600' : 'bg-purple-100 text-purple-600'}`}>
-            {role === 'doctor' ? <Stethoscope/> : <FileText/>}
-          </div>
-          <div>
-            <h1 className="font-bold text-gray-800">{role === 'doctor' ? 'Consultorio Digital' : 'Centro de Carga'}</h1>
-            <p className="text-xs text-gray-500">Conectado a Sheets</p>
-          </div>
-        </div>
-        <Button variant="ghost" onClick={() => setRole(null)} icon={LogOut}>Salir</Button>
-      </header>
-      <main className="max-w-[1600px] mx-auto p-6">
-        {loading ? <div className="flex justify-center py-20"><Loader className="animate-spin text-teal-600"/></div> : (
-          role === 'doctor' 
-            ? <DoctorDashboard patients={patients} onUpdatePatient={handleUpdatePatient} loading={loading} completedHistory={patients.filter(p => p.statusConsultation === 'Completado')} />
-            : <AdminDashboard patients={patients} onUpdateStatus={handleUpdateStatus} />
-        )}
-      </main>
-    </div>
-  );
-}
