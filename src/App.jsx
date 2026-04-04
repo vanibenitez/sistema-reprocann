@@ -719,7 +719,7 @@ const DoctorDashboard = ({ patients, onUpdatePatient, loading, completedHistory 
                 {/* Tratamiento - Input simple */}
                 <div>
                   <label className="block text-sm font-bold mb-1">Tratamiento Convencional</label>
-                  <textarea className="w-full p-3 border rounded bg-yellow-50 h-[180px] text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y" value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} placeholder="Escriba aquí el tratamiento detallado..."/>
+                  <textarea className="w-full p-3 border rounded bg-yellow-50 h-[120px] text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-y" value={formData.treatment} onChange={e => setFormData({...formData, treatment: e.target.value})} placeholder="Escriba aquí el tratamiento detallado..."/>
                 </div>
 
                 {/* Receta y Justificación - Achicados */}
